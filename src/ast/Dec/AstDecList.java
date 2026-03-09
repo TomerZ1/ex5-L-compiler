@@ -105,9 +105,9 @@ public class AstDecList extends AstList
         if (tail != null) tail.irMeVarDecs();
     }
 
-    /** Pass 2: emit IR only for function declaration bodies. */
+    /** Pass 2: emit IR only for function declaration bodies (and class methods). */
     public void irMeFuncDecs() {
-        if (head instanceof AstFuncDec) head.irMe();
+        if (head instanceof AstFuncDec || head instanceof AstClassDec) head.irMe();
         if (tail != null) tail.irMeFuncDecs();
     }
 }

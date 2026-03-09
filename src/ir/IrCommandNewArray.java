@@ -42,4 +42,17 @@ public class IrCommandNewArray extends IrCommand
 		result.add("Temp_" + dst.getSerialNumber());
 		return result;
 	}
+
+	@Override
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		String sizeReg = r(size, regMap);
+		String dstReg  = r(dst,  regMap);
+		mg.emit("li $v0, 9\n");
+		mg.emit("move $a0, " + sizeReg + "\n");
+		mg.emit("add $a0, $a0, 1\n");    // one extra cell to store the length
+		mg.emit("mul $a0, $a0, 4\n");    // convert to bytes
+		mg.emit("syscall\n");
+		mg.emit("move " + dstReg + ", $v0\n");
+		mg.emit("sw " + sizeReg + ", 0($v0)\n");  // store length at index 0
+	}
 }

@@ -99,13 +99,20 @@ public class AstStmtAssign extends AstStmt
         if (var instanceof AstVarSimple) {
             // Simple variable: x := exp
             AstVarSimple simpleVar = (AstVarSimple) var;
-            String varIrName = (simpleVar.irVarName != null) ? simpleVar.irVarName : simpleVar.name;
-            Ir.getInstance().AddIrCommand(new IrCommandStore(varIrName, src));
+            if (simpleVar.isClassField) {
+                // Implicit self.field assignment: load self then store to field
+                Temp selfTemp = TempFactory.getInstance().getFreshTemp();
+                Ir.getInstance().AddIrCommand(new IrCommandLoad(selfTemp, "__self"));
+                Ir.getInstance().AddIrCommand(new IrCommandFieldStore(selfTemp, simpleVar.name, src, simpleVar.selfClassName));
+            } else {
+                String varIrName = (simpleVar.irVarName != null) ? simpleVar.irVarName : simpleVar.name;
+                Ir.getInstance().AddIrCommand(new IrCommandStore(varIrName, src));
+            }
         } else if (var instanceof AstVarField) {
             // Field access: obj.field := exp
             AstVarField fieldVar = (AstVarField) var;
             Temp objTemp = fieldVar.var.irMe();
-            Ir.getInstance().AddIrCommand(new IrCommandFieldStore(objTemp, fieldVar.fieldName, src));
+            Ir.getInstance().AddIrCommand(new IrCommandFieldStore(objTemp, fieldVar.fieldName, src, fieldVar.objClassName));
         } else if (var instanceof AstVarSubscript) {
             // Array subscript: arr[index] := exp
             AstVarSubscript subsVar = (AstVarSubscript) var;

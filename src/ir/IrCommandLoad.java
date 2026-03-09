@@ -46,4 +46,20 @@ public class IrCommandLoad extends IrCommand
 		result.add("Temp_" + dst.getSerialNumber());
 		return result;
 	}
+
+	@Override
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		String dstReg = r(dst, regMap);
+		Ir irReg = Ir.getInstance();
+		// Use per-function param lookup: only treat varName as a param if it is
+		// registered as a param of the function currently being emitted.
+		if (irReg.isParam(mg.currentFunc, varName)) {
+			int idx = irReg.getParamIndex(mg.currentFunc, varName);
+			mg.emit("lw " + dstReg + ", " + (8 + idx * 4) + "($fp)\n");
+		} else if (irReg.isGlobal(varName)) {
+			mg.emit("lw " + dstReg + ", " + varName + "\n");
+		} else {
+			mg.emit("lw " + dstReg + ", " + mg.getLocal(varName) + "($fp)\n");
+		}
+	}
 } 

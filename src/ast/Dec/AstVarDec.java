@@ -143,6 +143,14 @@ public class AstVarDec extends AstDec {
         // Allocate space for the variable
         Ir.getInstance().AddIrCommand(new IrCommandAllocate(varIrName));
 
+        // Register as global if it is at scope 0 (outermost / global scope)
+        try {
+            int scopeOfVar = Integer.parseInt(varIrName.substring(varIrName.lastIndexOf('_') + 1));
+            if (scopeOfVar == 0) {
+                Ir.getInstance().registerGlobal(varIrName);
+            }
+        } catch (NumberFormatException ignored) {}
+
         // If there's an initialization expression, evaluate and store it
         if (exp != null) {
             Temp expTemp = exp.irMe();

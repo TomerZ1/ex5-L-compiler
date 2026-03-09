@@ -6,6 +6,7 @@ import ast.AstNodeSerialNumber;
 import ast.Helpers.HelperFunctions;
 import symboltable.SymbolTable;
 import types.*;
+import ir.Ir;
 
 public class AstClassDec extends AstDec {
     private String name;
@@ -89,6 +90,9 @@ public class AstClassDec extends AstDec {
 
         // 8. Organize Members
         myClassType.splitMembers();
+
+        // Register the class type in the Ir registry (needed by MipsGenerator for vtable/field offsets)
+        Ir.getInstance().registerClass(name, myClassType);
 
         // 9. CHECK INHERITANCE RULES (Shadowing/Overriding)
         if (fatherType != null) {
@@ -194,9 +198,25 @@ public class AstClassDec extends AstDec {
 
     public temp.Temp irMe()
     {
-        // Class declarations don't generate IR code
-        // They're just type definitions used by the semantic analyzer
-        // Member variables and methods will generate code when instantiated/called
+        SymbolTable tbl = SymbolTable.getInstance();
+        TypeClass myClass = (TypeClass) tbl.find(name);
+
+        // Set current class context so AstFuncDec.irMe() emits "ClassName_method" labels
+        TypeClass previousClass = tbl.currentClass;
+        tbl.currentClass = myClass;
+
+        // Emit IR for all method bodies
+        if (dataMemberList != null) {
+            ast.AstCFieldList it = dataMemberList;
+            while (it != null) {
+                if (it.head.dec instanceof AstFuncDec) {
+                    ((AstFuncDec) it.head.dec).irMe();
+                }
+                it = it.tail;
+            }
+        }
+
+        tbl.currentClass = previousClass;
         return null;
     }
 }

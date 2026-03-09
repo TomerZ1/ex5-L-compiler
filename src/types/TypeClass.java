@@ -1,6 +1,7 @@
 package types;
 
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 public class TypeClass extends Type
 {
@@ -15,9 +16,11 @@ public class TypeClass extends Type
 	/* packed together with the class methods         */
 	/**************************************************/
 	public TypeList dataMembers;
-	
-	public HashMap<String, Type> fields = new HashMap<>();
-	public HashMap<String, TypeFunction> methods = new HashMap<>();
+
+	// LinkedHashMap preserves declaration order — critical for deterministic
+	// vtable indices and object field offsets.
+	public LinkedHashMap<String, Type> fields = new LinkedHashMap<>();
+	public LinkedHashMap<String, TypeFunction> methods = new LinkedHashMap<>();
 
 	/****************/
 	/* CTROR(S) ... */
@@ -58,6 +61,31 @@ public class TypeClass extends Type
 		}
 		// Not found
 		return null;
+	}
+
+	/**
+	 * Returns the 0-based field index in the full object layout.
+	 * Inherited fields come first, then own fields.
+	 * Object byte offset for field at index i = (i+1)*4  (word 0 is vtable ptr).
+	 */
+	public int getFieldIndex(String fieldName) {
+		if (father != null) {
+			int fatherResult = father.getFieldIndex(fieldName);
+			if (fatherResult >= 0) return fatherResult;
+		}
+		int base = (father != null) ? father.totalFieldCount() : 0;
+		int i = 0;
+		for (String key : fields.keySet()) {
+			if (key.equals(fieldName)) return base + i;
+			i++;
+		}
+		return -1;
+	}
+
+	/** Total data-field count (own + inherited), NOT counting the vtable pointer. */
+	public int totalFieldCount() {
+		int parentCount = (father != null) ? father.totalFieldCount() : 0;
+		return parentCount + fields.size();
 	}
 
 	public void splitMembers() {

@@ -18,12 +18,14 @@ public class IrCommandFieldStore extends IrCommand
 	public Temp object;        // object temp
 	public String fieldName;
 	public Temp value;         // value to store
-	
-	public IrCommandFieldStore(Temp object, String fieldName, Temp value)
+	public String className;   // static class type of object (for field offset computation)
+
+	public IrCommandFieldStore(Temp object, String fieldName, Temp value, String className)
 	{
 		this.object = object;
 		this.fieldName = fieldName;
 		this.value = value;
+		this.className = className;
 	}
 	
 	@Override
@@ -40,5 +42,16 @@ public class IrCommandFieldStore extends IrCommand
 
 	public Set<String> getWriteTemps() {
 		return new HashSet<>();
+	}
+
+	@Override
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		String objReg = r(object, regMap);
+		String valReg = r(value,  regMap);
+		mg.emitNilCheck(objReg);
+		types.TypeClass tc = ir.Ir.getInstance().lookupClass(className);
+		int fieldIdx   = tc.getFieldIndex(fieldName);
+		int byteOffset = (fieldIdx + 1) * 4;
+		mg.emit("sw " + valReg + ", " + byteOffset + "(" + objReg + ")\n");
 	}
 }

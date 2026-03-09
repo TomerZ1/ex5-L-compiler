@@ -55,4 +55,22 @@ public class IrCommandCall extends IrCommand
 		}
 		return result;
 	}
+
+	@Override
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		// Build args list
+		java.util.List<temp.Temp> argList = new java.util.ArrayList<>();
+		TempList cur = args;
+		while (cur != null) { argList.add(cur.head); cur = cur.tail; }
+		// Push right-to-left
+		for (int i = argList.size() - 1; i >= 0; i--) {
+			mg.emit("subu $sp, $sp, 4\n");
+			mg.emit("sw " + r(argList.get(i), regMap) + ", 0($sp)\n");
+		}
+		String callee = funcName.equals("main") ? "user_main" : funcName;
+		mg.emit("jal " + callee + "\n");
+		mg.emit("addu $sp, $sp, " + (argList.size() * 4) + "\n");
+		if (dst != null)
+			mg.emit("move " + r(dst, regMap) + ", $v0\n");
+	}
 }

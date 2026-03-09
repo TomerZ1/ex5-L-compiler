@@ -8,6 +8,8 @@ public class AstVarField extends AstVar
 {
 	public AstVar var;
 	public String fieldName;
+	/** Class name of the object — set during SemantMe for className in IR commands. */
+	public String objClassName = null;
 	
 	/******************/
 	/* CONSTRUCTOR(S) */
@@ -79,6 +81,7 @@ public class AstVarField extends AstVar
             error();
         }
         
+        this.objClassName = tc.name;
         return fieldType;
     }
 
@@ -87,7 +90,7 @@ public class AstVarField extends AstVar
         // Field access: obj.field - load field value
         temp.Temp objTemp = var.irMe();
         temp.Temp fieldTemp = temp.TempFactory.getInstance().getFreshTemp();
-        ir.Ir.getInstance().AddIrCommand(new ir.IrCommandFieldLoad(fieldTemp, objTemp, fieldName));
+        ir.Ir.getInstance().AddIrCommand(new ir.IrCommandFieldLoad(fieldTemp, objTemp, fieldName, objClassName));
         return fieldTemp;
     }
 }

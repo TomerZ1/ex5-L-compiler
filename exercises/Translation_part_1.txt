@@ -1,0 +1,314 @@
+Translation Schemas From Class:
+
+MIPS Architecture
+• Labels
+data_label_1: .word 17
+data_label_2: .asciiz “abc”
+code_label:
+li $t0, 3
+MIPS Architecture
+• Basic assignments
+li $t0, 3
+move $t1, $t2
+MIPS Architecture
+• Arithmetic instructions
+‒ operate on registers and constants
+‒ add, sub, mul, div, and, or, xor, …
+add $t2, $t0, $t1
+mul $t3, t1, 7 
+MIPS Architecture
+• Read from memory
+lw $t0,4($t1)
+lw $t0,label
+lw $t0,label+4
+lw $t0,label+8($t1)
+MIPS Architecture
+• Write to memory
+sw $t0,2($t1)
+sw $t0,label
+sw $t0,label+4
+sw $t0,label+8($t1)
+MIPS Architecture
+• Branches and Jumps
+beq $t1, $t2, label
+bne $t1, 7, label
+j label
+jal label
+jalr $t1
+MIPS Architecture
+• System calls:
+‒ Syscall number passed via v0
+‒Arguments are passed via a0, a1, a2, a3
+• For example, calling PrintInt(3):
+li $v0, 1
+li $a0, 3
+syscall
+SPIM: MIPS Simulator
+.data
+g_foo: .word 17
+g_str: .asciiz “hello”
+…
+.text
+li $v0, 1
+lw $a0, g_foo
+syscall
+li $v0, 4
+la $a0, g_str
+syscall
+global data
+code
+SPIM: MIPS Simulator
+.data
+g_foo: .word 17
+g_str: .asciiz “hello”
+…
+.text
+li $v0, 1
+lw $a0, g_foo
+syscall
+li $v0, 4
+la $a0, g_str
+syscall
+
+
+Stack
+int f(int x, int y){
+int z = x + y;
+return z;
+}
+int g() {
+int x = f(10, 20)
+}
+
+f:
+subu $sp, $sp, 4
+sw $ra, 0($sp)
+subu $sp, $sp, 4
+sw $fp, 0($sp)
+move $fp, $sp
+subu $sp, $sp, 16
+lw $t0, 8($fp)
+lw $t1, 12($fp)
+add $t2, $t0, $t1
+sw $t2, -4($fp)
+lw $v0, -4($fp)
+move $sp, $fp
+lw $fp, 0($sp)
+lw $ra, 4($sp)
+addu $sp, $sp, 8
+jr $ra
+
+g:
+...
+li $t0, 20
+subu $sp, $sp, 4
+sw $t0, 0($sp)
+li $t0, 10
+subu $sp, $sp, 4
+sw $t0, 0($sp)
+jal f
+addu $sp, $sp, 8
+move $t0, $v0
+...
+
+
+Register Backup
+• Called functions may modify registers
+• Backup at the prologue
+• Restore at the epilogue
+
+Prologue
+f:
+subu $sp, $sp, 4
+sw $ra, 0($sp)
+subu $sp, $sp, 4
+sw $fp, 0($sp)
+move $fp, $sp
+subu $sp, $sp, 4
+sw $t0, 0($sp)
+…
+subu $sp, $sp, 4
+sw $t9, 0($sp)
+subu $sp, $sp, 16
+
+ Epilogue
+f:
+...
+move $sp, $fp
+lw $t0, -4($sp)
+...
+lw $t9, -40($sp)
+lw $fp, 0($sp)
+lw $ra, 4($sp)
+addu $sp, $sp, 8
+jr $ra
+
+Register Backup: Local Variables Offsets
+f:
+...
+lw $t0, 8($fp)
+lw $t1, 12($fp)
+add $t2, $t0, $t1
+sw $t2, -44($fp)
+lw $v0, -44($fp)
+...
+
+Translating IR to MIPS: Registers
+• Our IR is likely to use too many registers
+• Assume for now that the number of IR registers is reduced
+‒ Every IR register mapped to a CPU register (t0, … t9)
+• Later in the course we will learn how to compute register allocation
+Translating IR to MIPS
+• Translate global variable initializations
+• Translate the IR instructions for each function
+‒ Implement a translation function for each IR instruction
+‒ If the translation requires additional registers:
+➢Use registers s0, s1, …
+
+Translating IR
+
+Global initializations (integers)
+int g_1 = 7;
+
+.data:
+g_1: .word 7
+
+
+ Assignments (read from memory)
+• For global variables:
+t1 = g_var
+g_var: .word 17
+...
+lw $t1, g_var
+Assignments (write to memory)
+• For global variables:
+g_var = t1
+g_var: .word 17
+...
+sw $t1, g_var
+
+Assignments (constant)
+t1 = c
+li $t1, c
+
+Assignments (read from memory)
+• For local variables and parameters:
+t1 = x
+lw $t1, off($fp)
+(Use annotated AST)
+
+Assignments (write to memory)
+• For local variables and parameters:
+x = t1
+sw $t1, off($fp)
+
+Arithmetic operation
+t0 = add t1, t2
+add $t0, $t1, $t2
+
+Arithmetic operation
+t0 = add t1, t2
+add $t0, $t1, $t2
+ble $t0, max, end
+li $t0, max
+end:
+# more checks…
+
+Branch
+beq t1, t2, label
+beq $t1, $t2, label
+
+ Function call
+t0 = call f(t1, t2)
+subu $sp, $sp, 4
+sw $t2, 0($sp)
+subu $sp, $sp, 4
+sw $t1, 0($sp)
+jal f
+addu $sp, $sp, 8
+move $t0, $v0
+
+Return (in a function f)
+• Store result in v0 and jump to f’s epilogue label (f_epilogue)
+return t1
+move $v0, $t1
+j f_epilogue
+
+
+int g = 70;
+int f(int x){
+int z = x;
+if (z) {
+z = g
+}
+return z;
+}
+
+f:
+t1 = x
+z = t1
+t2 = z
+beq t2, 0, end
+t3 = g
+z = t3
+end:
+t4 = z
+return t4
+
+.data
+g: .word 70
+.text
+f:
+# prologue here
+...
+lw $t
+1,
+8($fp
+)
+sw $t
+1,
+-44($fp
+)
+lw $t
+2,
+-44($fp
+)
+beq $t
+2,
+0, end
+lw $t
+3, g
+sw $t
+3,
+-44($fp
+)
+end:
+lw $t
+4,
+-44($fp
+)
+move $v
+0, $t
+4
+j f_epilogue
+f_epilogue
+:
+# epilogue here
+...
+
+Execution Entry Point
+• Execution of a MIPS program begins at the label main
+• Execution of an input program begins at the function main
+‒Main’s signature: void main() 
+Calling main
+.data
+...
+.text
+user_main:
+...
+user_main_epilogue:
+...
+main: (execution starts here )
+jal user_main
+li $v0, 10
+syscall

@@ -12,6 +12,8 @@ public class AstExpBinop extends AstExp
 	int op;
 	public AstExp left;
 	public AstExp right;
+	/** Type of the left operand — set during SemantMe for string/pointer dispatch in irMe(). */
+	private types.Type leftType = null;
 	
 	/******************/
 	/* CONSTRUCTOR(S) */
@@ -81,6 +83,7 @@ public class AstExpBinop extends AstExp
     public Type SemantMe() {
         Type t1 = left.SemantMe();
         Type t2 = right.SemantMe();
+        this.leftType = t1;  // save for irMe() dispatch
 
         System.out.println("DEBUG ExpBinop: op=" + op + ", t1=" + (t1!=null?t1.name:"null") + ", t2=" + (t2!=null?t2.name:"null") + ", line=" + this.lineNumber);
 
@@ -133,7 +136,10 @@ public class AstExpBinop extends AstExp
 
         if (op == 0) // PLUS
         {
-            Ir.getInstance().AddIrCommand(new IrCommandBinopAddIntegers(dst, t1, t2));
+            if (leftType instanceof types.TypeString)
+                Ir.getInstance().AddIrCommand(new IrCommandBinopConcatStrings(dst, t1, t2));
+            else
+                Ir.getInstance().AddIrCommand(new IrCommandBinopAddIntegers(dst, t1, t2));
         }
         else if (op == 1) // MINUS
         {
@@ -157,7 +163,12 @@ public class AstExpBinop extends AstExp
         }
         else if (op == 6) // EQ
         {
-            Ir.getInstance().AddIrCommand(new IrCommandBinopEqIntegers(dst, t1, t2));
+            if (leftType instanceof types.TypeString)
+                Ir.getInstance().AddIrCommand(new IrCommandBinopEqStrings(dst, t1, t2));
+            else if (leftType instanceof types.TypeInt)
+                Ir.getInstance().AddIrCommand(new IrCommandBinopEqIntegers(dst, t1, t2));
+            else
+                Ir.getInstance().AddIrCommand(new IrCommandBinopEqPointers(dst, t1, t2));
         }
 
         return dst;

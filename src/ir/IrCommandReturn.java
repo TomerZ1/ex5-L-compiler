@@ -41,4 +41,13 @@ public class IrCommandReturn extends IrCommand
 	public Set<String> getWriteTemps() {
 		return new HashSet<>();
 	}
+
+	@Override
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		if (returnValue != null)
+			mg.emit("move $v0, " + r(returnValue, regMap) + "\n");
+		String fn = mg.currentFunc;
+		String mipsName = (fn != null && fn.equals("main")) ? "user_main" : fn;
+		mg.emit("j " + mipsName + "_epilogue\n");
+	}
 }

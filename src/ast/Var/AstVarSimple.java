@@ -12,7 +12,11 @@ public class AstVarSimple extends AstVar
 	/* simple variable name */
 	/************************/
 	public String name;
-        public String irVarName = null; // scope-qualified IR name, e.g. "x_0"
+	public String irVarName = null; // scope-qualified IR name, e.g. "x_0"
+	/** True when this name refers to a field of the enclosing class (implicit self access). */
+	public boolean isClassField = false;
+	/** Class name when isClassField is true — needed for IrCommandFieldLoad/Store. */
+	public String selfClassName = null;
 	public AstVarSimple(String name)
 	{
 		/******************************/
@@ -57,6 +61,8 @@ public class AstVarSimple extends AstVar
             Type fieldType = tbl.currentClass.lookupField(name);
             if (fieldType != null) {
                 System.out.println("DEBUG VarSimple: Looking up variable '" + name + "', found in class field: " + fieldType.name);
+                this.isClassField = true;
+                this.selfClassName = tbl.currentClass.name;
                 return fieldType;
             }
         }
@@ -81,6 +87,14 @@ public class AstVarSimple extends AstVar
 
     public Temp irMe()
     {
+        if (isClassField) {
+            // Implicit self.field access: load self from param slot 0, then load field
+            Temp selfTemp = TempFactory.getInstance().getFreshTemp();
+            Ir.getInstance().AddIrCommand(new IrCommandLoad(selfTemp, "__self"));
+            Temp fieldTemp = TempFactory.getInstance().getFreshTemp();
+            Ir.getInstance().AddIrCommand(new IrCommandFieldLoad(fieldTemp, selfTemp, name, selfClassName));
+            return fieldTemp;
+        }
         Temp t = TempFactory.getInstance().getFreshTemp();
         String varIrName = (irVarName != null) ? irVarName : name;
         Ir.getInstance().AddIrCommand(new IrCommandLoad(t, varIrName));

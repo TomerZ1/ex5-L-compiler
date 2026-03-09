@@ -121,12 +121,10 @@ public class AstNewExp extends AstExp {
         if (sizeExp != null) {
             // Array allocation: new Type[size]
             temp.Temp sizeTemp = sizeExp.irMe();
-            String typeName = type.toString(); // Get type name
-            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandNewArray(dst, sizeTemp, typeName));
+            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandNewArray(dst, sizeTemp, type.typeName));
         } else {
-            // Object allocation: new Type
-            String className = type.toString(); // Get class name
-            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandNewClass(dst, className));
+            // Object allocation: new ClassName
+            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandNewClass(dst, type.typeName));
         }
         
         return dst;

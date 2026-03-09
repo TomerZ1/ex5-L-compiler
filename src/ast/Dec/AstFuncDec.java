@@ -10,12 +10,16 @@ import symboltable.SymbolTable;
 import types.*;
 import temp.*;
 import ir.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public class AstFuncDec extends AstDec {
     private AstType returnType;
     private String name;
     private AstTypeList typeList;
     private AstStmtList stmtList;
+    /** Scoped IR names of parameters (e.g. ["x_1","y_1"]) — set during SemantMe. */
+    private List<String> paramIrNames = new ArrayList<>();
 
     public AstFuncDec(AstType returnType, String name, AstTypeList typeList, AstStmtList stmtList)
     {
@@ -122,6 +126,8 @@ public class AstFuncDec extends AstDec {
 
             // Enter param into the local function scope
             tbl.enter(it.name, paramType);
+            // Record scoped IR name for the irMe() pass
+            paramIrNames.add(it.name + "_" + tbl.getScopeIndex());
             
             it = it.tail;
         }
@@ -144,10 +150,37 @@ public class AstFuncDec extends AstDec {
     }
 
     public Temp irMe() {
-        // Generate IR for function body
-        if (stmtList != null) {
-            stmtList.irMe();
+        SymbolTable tbl = SymbolTable.getInstance();
+        Ir ir = Ir.getInstance();
+
+        // Determine the label:
+        //   - methods inside a class: "ClassName_methodName"
+        //   - top-level functions  : "methodName"
+        String funcLabel = (tbl.currentClass != null)
+            ? tbl.currentClass.name + "_" + name
+            : name;
+
+        // Emit function-entry label (isFunctionEntry=true lets Main.java split IR by function)
+        ir.AddIrCommand(new IrCommandLabel(funcLabel, true));
+
+        // Tell Ir which function we're building so registerParam() stores under the right key.
+        ir.setCurrentFuncLabel(funcLabel);
+
+        // Register parameters so IrCommandLoad.mipsMe() knows they come from the caller's stack.
+        // For methods: self occupies slot 0 (fp+8), explicit params start at slot 1.
+        // For functions: explicit params start at slot 0.
+        int startSlot = (tbl.currentClass != null) ? 1 : 0;
+        for (int i = 0; i < paramIrNames.size(); i++) {
+            ir.registerParam(paramIrNames.get(i), startSlot + i);
         }
+        // For methods: register the implicit "__self" param at slot 0
+        if (tbl.currentClass != null) {
+            ir.registerParam("__self", 0);
+        }
+
+        // Emit function body IR
+        if (stmtList != null) stmtList.irMe();
+
         return null;
     }
 }

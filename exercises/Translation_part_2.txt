@@ -1,0 +1,283 @@
+Translation schemas part 2
+Reference Variables
+• Variables (local or global) of type string, array or class store a
+pointer (memory address) to the data or nil (value 0)
+• The data can be stored in:
+‒The heap
+‒Global data (only constant strings)
+• Memory assignment translation is identical to integers
+Strings
+• We use null terminated strings
+• Every character is one byte
+string s1 = “1234”;
+string s2 = “a”;
+...
+...
+1 2 3 4 \0
+a \0
+
+Strings
+• Constant assignment
+t0 = “1234”
+goes to code section
+la $t0, str_const
+must be defined in data section
+.data
+str_const: .asciiz “1234”
+ 
+
+Global variable initialization
+string z := “1234”;
+
+.data
+z_str: .asciiz “1234”
+z: .word z_str
+
+Strings: Equality Comparison
+• Assume that s1 and s2 are strings
+if (s1 == s2) {
+...
+}
+
+IR:
+t1 = s1;
+t2 = s2;
+t3 = str_eq t1, t2
+beq t3, 0, label
+...
+
+Inline string comparison
+t1 = s1;
+t2 = s2;
+t3 = str_eq t1, t2
+beq t3, 0, label
+...
+
+li $t3, 1 // result
+move $s0, $t1
+move $s1, $t2
+str_eq_loop:
+lb $s2, 0($s0)
+lb $s3, 0($s1)
+bne $s2, $s3, neq_label
+beq $s2, $zero, str_eq_end
+addu $s0, $s0, 1
+addu $s1, $s1, 1
+j str_eq_loop
+neq_label:
+li $t3, 0
+str_eq_end:
+
+Alternatively, create a function str_eq
+
+t1 = s1;
+t2 = s2;
+t3 = str_eq t1, t2
+beq t3, 0, label
+...
+
+subu $sp, $sp, 4
+sw $t2, 0($sp)
+subu $sp, $sp, 4
+sw $t1, 0($sp)
+jal str_eq
+addu $sp, $sp, 8
+move $t3, $v0
+
+Arrays
+• Each cell is 4 bytes (int or pointer)
+• First cell is the size of the array
+• The rest of the cells contain data
+4 11 12 30 31
+
+(First is size, then data)
+
+Creating arrays
+t0 = new_array t1
+li $v0, 9
+move $a0, $t1
+add $a0, $a0, 1
+mul $a0, $a0, 4
+syscall
+move $t0, $v0
+sw $t1, 0($t0)
+
+Memory allocation
+$a0 = number of bytes to allocate
+
+ Array access
+t0 = array_access t1, t2
+move $s0, $t2
+add $s0, $s0, 1
+mul $s0, $s0, 4
+addu $s0, $t1, $s0
+lw $t0, 0($s0)
+
+Checking access violation
+t0 = array_access t1, t2
+
+bltz $t2, abort
+lw $s0, 0($t1)
+bge $t2, $s0, abort
+move $s0, $t2
+add $s0, $s0, 1
+mul $s0, $s0, 4
+addu $s0, $t1, $s0
+lw $t0, 0($s0)
+...
+abort:
+li $v0, 10
+syscall
+
+Class Layout
+class A {
+int x;
+string y;
+int f() { …
+int g() { …
+}
+
+Object
+vt x y
+|
+V
+f g (vt)
+
+class A {
+int x;
+string y;
+int f() { …
+int g() {
+…
+}
+class B extends A {
+int z;
+int f() {
+…
+int h() {
+…
+}
+
+vt x y z
+
+f g h (vt)
+
+class A {
+int f1 = c;
+…
+int m1() { …
+…
+}
+A a = new A;
+
+vt_A f1 f2 …
+m1 m2 …
+
+IR:
+t0 = new_class A
+a = t0
+
+t0 = new_class A:
+
+Generated once:
+.data
+vt_A:
+.word m1
+.word m2
+...
+
+.text
+m1: // method code
+...
+m2: // method code
+...
+
+.text
+li $v0, 9
+li $a0, size-of-A
+syscall
+move $t0, $v0
+la $s0, vt_A
+sw $s0, 0($t0)
+li $s0, c
+sw $s0, 4($t0)
+...
+
+Field Access
+t0 = field_access t1, f
+
+beq $t1, 0, abort
+lw $t0, off($t1) (Use annotated AST)
+...
+abort:
+li $v0, 10
+syscall
+
+
+field_set t1, f, t2
+beq $t1, 0, abort
+sw $t2, off($t1)
+...
+abort:
+li $v0, 10
+syscall
+
+Method Calls
+t2 = virtual_call t0, m, t1
+
+subu $sp, $sp, 4
+sw $t1, 0($sp)
+subu $sp, $sp, 4
+sw $t0, 0($sp)
+lw $s0, 0($t0)
+lw $s1, off($s0)
+jalr $s1
+addu $sp, $sp, 8
+move $t2, $v0
+
+Method Calls
+class A {
+void m1(int x) {}
+void m2(int x) {}
+}
+class B extends A {
+void m2(int x) {}
+}
+void main(){
+B b = new B;
+z = b.m2(7)
+}
+
+IR
+t0 = new_class B
+b = t0
+t1 = b
+t2 = 7
+t3 = virtual_call t1, m2, t2
+z = t3
+
+
+.data
+vt_B:
+.word A_m1
+.word B_m2
+
+li $v0, 9
+li $a0, 4
+syscall
+move $t0, $v0
+la $s0, vt_B
+sw $s0, 0($t0)
+sw $t0, off_b($fp)
+lw $t1, off_b($fp)
+li $t2, 7
+subu $sp, $sp, 4
+sw $t2, 0($sp)
+subu $sp, $sp, 4
+sw $t1, 0($sp)
+lw $s0, 0($t1)
+lw $s1, 4($s0)
+jalr $s1
+addu $sp, $sp, 8
+move $t3, $v0
+sw $t3, off_z($fp)

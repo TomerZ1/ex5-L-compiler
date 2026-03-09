@@ -63,4 +63,17 @@ public abstract class IrCommand
 	/* Abstract method for IR printing */
 	/***********************************/
 	public abstract String toString();
+
+	/**
+	 * Helper: returns the register name assigned to temp by regMap.
+	 * regMap maps "Temp_N" -> "$tK".
+	 */
+	protected String r(temp.Temp temp, java.util.Map<String,String> regMap) {
+		return regMap.get("Temp_" + temp.getSerialNumber());
+	}
+
+	/** Generate MIPS assembly for this IR command. */
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		// Default: no-op — subclasses override
+	}
 }

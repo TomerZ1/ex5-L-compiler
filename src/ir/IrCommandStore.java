@@ -46,4 +46,15 @@ public class IrCommandStore extends IrCommand
 	public Set<String> getWriteTemps() {
 		return new HashSet<>();
 	}
+
+	@Override
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		String srcReg = r(src, regMap);
+		Ir irReg = Ir.getInstance();
+		if (irReg.isGlobal(varName)) {
+			mg.emit("sw " + srcReg + ", " + varName + "\n");
+		} else {
+			mg.emit("sw " + srcReg + ", " + mg.getLocal(varName) + "($fp)\n");
+		}
+	}
 } 

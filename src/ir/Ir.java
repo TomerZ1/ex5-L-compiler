@@ -16,6 +16,60 @@ public class Ir
 	private IrCommand head=null;
 	private IrCommandList tail=null;
 
+	// ----------------------------------------------------------------
+	// Registry 1: function parameters
+	// Per-function map: funcLabel -> (scopedParamName -> 0-based slot index).
+	// This prevents a param name from one function falsely matching a
+	// local variable with the same scoped name in another function.
+	// ----------------------------------------------------------------
+	private java.util.Map<String, java.util.Map<String, Integer>> funcParamIndex = new java.util.HashMap<>();
+	private String currentFuncLabel = null;
+
+	/** Must be called before registerParam() whenever a new function's IR is being built. */
+	public void setCurrentFuncLabel(String funcLabel) { currentFuncLabel = funcLabel; }
+
+	public void registerParam(String irName, int index) {
+		if (currentFuncLabel == null) return;
+		funcParamIndex.computeIfAbsent(currentFuncLabel, k -> new java.util.HashMap<>()).put(irName, index);
+	}
+
+	public boolean isParam(String funcLabel, String irName) {
+		java.util.Map<String, Integer> m = funcParamIndex.get(funcLabel);
+		return m != null && m.containsKey(irName);
+	}
+
+	/** Legacy single-arg form — queries against the currentFuncLabel context. */
+	public boolean isParam(String irName) { return isParam(currentFuncLabel, irName); }
+
+	public int getParamIndex(String funcLabel, String irName) {
+		java.util.Map<String, Integer> m = funcParamIndex.get(funcLabel);
+		return (m != null) ? m.getOrDefault(irName, -1) : -1;
+	}
+
+	public int getParamIndex(String irName) { return getParamIndex(currentFuncLabel, irName); }
+
+	// ----------------------------------------------------------------
+	// Registry 2: global variables
+	// Set of scoped IR names that are at global (scope-0) level.
+	// ----------------------------------------------------------------
+	private java.util.Set<String> globals = new java.util.HashSet<>();
+
+	public void registerGlobal(String irName) { globals.add(irName); }
+	public boolean isGlobal(String irName) { return globals.contains(irName); }
+
+	// ----------------------------------------------------------------
+	// Registry 3: class type information + declaration order
+	// Needed by MipsGenerator to compute vtable indices and field offsets.
+	// ----------------------------------------------------------------
+	private java.util.Map<String, types.TypeClass> classRegistry = new java.util.HashMap<>();
+	public  java.util.List<String> classOrder = new java.util.ArrayList<>();
+
+	public void registerClass(String name, types.TypeClass tc) {
+		classRegistry.put(name, tc);
+		if (!classOrder.contains(name)) classOrder.add(name);
+	}
+	public types.TypeClass lookupClass(String name) { return classRegistry.get(name); }
+
 	/******************/
 	/* Add Ir command */
 	/******************/

@@ -38,4 +38,9 @@ public class IRcommandConstInt extends IrCommand
 		result.add("Temp_" + t.getSerialNumber());
 		return result;
 	}
+
+	@Override
+	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
+		mg.emit("li " + r(t, regMap) + ", " + value + "\n");
+	}
 }

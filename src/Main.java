@@ -3,7 +3,6 @@ import java.util.*;
 import java_cup.runtime.Symbol;
 import ast.*;
 import ast.Helpers.HelperFunctions;
-//import ast.Dec.AstDecList;
 
 public class Main
 {
@@ -14,9 +13,9 @@ public class Main
 		AstProgram ast;
 		FileReader fileReader = null;
 		PrintWriter fileWriter = null;
-		String inputFileName = argv[0];
+		String inputFileName  = argv[0];
 		String outputFileName = argv[1];
-		
+
 		try
 		{
 			/********************************/
@@ -26,19 +25,20 @@ public class Main
 
 			/********************************/
 			/* [2] Initialize a file writer */
+			/*** (used for error output)  ***/
 			/********************************/
 			fileWriter = new PrintWriter(outputFileName);
-			
+
 			/****************************************/
 			/* [2.5] Set file writer in HelperFunctions */
 			/****************************************/
 			HelperFunctions.setFileWriter(fileWriter);
-			
+
 			/******************************/
 			/* [3] Initialize a new lexer */
 			/******************************/
 			l = new Lexer(fileReader);
-			
+
 			/*******************************/
 			/* [4] Initialize a new parser */
 			/*******************************/
@@ -47,83 +47,145 @@ public class Main
 			/***********************************/
 			/* [5] 3 ... 2 ... 1 ... Parse !!! */
 			/***********************************/
-			//ast = (AstDecList) p.parse().value;
 			ast = (AstProgram) p.parse().value;
-			
-			/*************************/
-			/* [6] Print the AST ... */
-			/*************************/
-			// ast.printMe();
 
 			/**************************/
-			/* [7] Semant the AST ... */
+			/* [6] Semant the AST ... */
 			/**************************/
 			ast.SemantMe();
-			
+
 			/*********************************/
-			/* [8] Generate IR from AST ...  */
+			/* [7] Generate IR from AST ...  */
 			/*********************************/
-			ast.irMe();//was written before tomerm edit
-			
-			// Get IR commands -tomerm edit from here
-   			List<ir.IrCommand> irCommands = ir.Ir.getInstance().getCommandList();
+			ast.irMe();
 
-// Build CFG
-                        cfg.Fullcfggraph controlFlowGraph = cfg.Fullcfggraph.buildFromIR(irCommands);
+			/************************************/
+			/* [8] Get flat IR command list     */
+			/************************************/
+			List<ir.IrCommand> irCommands = ir.Ir.getInstance().getCommandList();
 
-                        // Run dataflow analysis
-                        Set<String> uninitializedVars = controlFlowGraph.runDataflowAnalysis();
+			/************************************************************/
+			/* [9] Split IR into global preamble + per-function segments */
+			/*     Uses isFunctionEntry flag on IrCommandLabel          */
+			/************************************************************/
+			List<ir.IrCommand> globalPreamble = new ArrayList<>();
+			Map<String, List<ir.IrCommand>> funcSegments = new LinkedHashMap<>();
+			String curFunc = null;
 
-                        // Convert scope-qualified IR names (e.g. "x_0") back to original source names (e.g. "x")
-                        Set<String> originalVarNames = new java.util.HashSet<>();
-                        for (String irName : uninitializedVars) {
-                                originalVarNames.add(ir.Ir.getInstance().getOriginalName(irName));
-                        }
+			for (ir.IrCommand c : irCommands) {
+				if (c instanceof ir.IrCommandLabel && ((ir.IrCommandLabel) c).isFunctionEntry) {
+					curFunc = ((ir.IrCommandLabel) c).getLabelName();
+					funcSegments.put(curFunc, new ArrayList<>());
+				}
+				if (curFunc == null) globalPreamble.add(c);
+				else funcSegments.get(curFunc).add(c);
+			}
 
-                        /****************************************/
-                        /* [9] Output dataflow analysis results */
-                        /****************************************/
-                        if (originalVarNames.isEmpty()) {
-                                // No uninitialized variables detected
-                                fileWriter.write("!OK");
-                        } else {
-                                // Sort and output each uninitialized variable on separate line
-                                List<String> sortedVars = new ArrayList<>(originalVarNames);
-				Collections.sort(sortedVars);
-				for (int i = 0; i < sortedVars.size(); i++) {
-					fileWriter.write(sortedVars.get(i));
-					if (i < sortedVars.size() - 1) {
-						fileWriter.write("\n");
+			/*****************************************************/
+			/* [10] Register allocation per function             */
+			/*****************************************************/
+			Map<String, Map<String,String>> allRegAllocs = new LinkedHashMap<>();
+
+			// Global preamble (initializer code that runs inside user_main)
+			{
+				cfg.LivenessAnalysis la = new cfg.LivenessAnalysis(globalPreamble);
+				la.compute();
+				cfg.InterferenceGraph ig = cfg.InterferenceGraph.build(la);
+				allRegAllocs.put("__global_preamble", new regalloc.RegisterAllocator(ig, fileWriter).allocate());
+			}
+
+			// Per-function
+			for (Map.Entry<String, List<ir.IrCommand>> e : funcSegments.entrySet()) {
+				cfg.LivenessAnalysis la = new cfg.LivenessAnalysis(e.getValue());
+				la.compute();
+				cfg.InterferenceGraph ig = cfg.InterferenceGraph.build(la);
+				allRegAllocs.put(e.getKey(), new regalloc.RegisterAllocator(ig, fileWriter).allocate());
+			}
+
+			/*****************************************************/
+			/* [11] MIPS code generation                         */
+			/*****************************************************/
+			// Close the error-output writer; MipsGenerator opens the real output file
+			fileWriter.close();
+			fileWriter = null;
+
+			mips.MipsGenerator.init(outputFileName);
+			mips.MipsGenerator mg = mips.MipsGenerator.getInstance();
+
+			// Emit vtables for all registered classes (in declaration order)
+			ir.Ir irSingleton = ir.Ir.getInstance();
+			for (String className : irSingleton.classOrder) {
+				types.TypeClass tc = irSingleton.lookupClass(className);
+				List<String> vt = mips.MipsGenerator.buildVtable(tc);
+				mg.emitVtable(className, vt);
+			}
+
+			// Emit global .data entries (IrCommandAllocate only, executed before user_main)
+			for (ir.IrCommand c : globalPreamble) {
+				if (c instanceof ir.IrCommandAllocate)
+					c.mipsMe(mg, null);
+			}
+
+			// Emit per-function MIPS code
+			Map<String,String> preambleRegMap = allRegAllocs.get("__global_preamble");
+
+			for (Map.Entry<String, List<ir.IrCommand>> e : funcSegments.entrySet()) {
+				String fn = e.getKey();
+				Map<String,String> regMap = allRegAllocs.get(fn);
+				boolean isMain = fn.equals("main");
+
+				for (ir.IrCommand c : e.getValue()) {
+					// For user_main's function-entry label: emit prologue then inject global inits
+					if (isMain && c instanceof ir.IrCommandLabel
+							&& ((ir.IrCommandLabel) c).isFunctionEntry) {
+						c.mipsMe(mg, regMap);  // emits "user_main:" + prologue
+						// Inject global variable initializer code at the beginning of user_main
+						for (ir.IrCommand gc : globalPreamble) {
+							if (!(gc instanceof ir.IrCommandAllocate))
+								gc.mipsMe(mg, preambleRegMap);
+						}
+					} else {
+						c.mipsMe(mg, regMap);
 					}
 				}
+				mg.endFunction(fn);
 			}
-			
-			/*************************************/
-			/* [10] Finalize AST GRAPHIZ DOT file */
-			/*************************************/
-			// AstGraphviz.getInstance().finalizeFile();
-    	}
-			     
+
+			// MIPS main stub and runtime handlers
+			mg.emitMipsMain();
+			mg.emitRuntimeHandlers();
+			mg.finalizeFile();
+		}
+
 		catch (Exception e)
 		{
 			e.printStackTrace();
-			fileWriter.write("ERROR");
+			if (fileWriter != null) {
+				fileWriter.write("ERROR");
+			} else {
+				// MipsGenerator was already initialized — write error to output file
+				try (PrintWriter pw = new PrintWriter(outputFileName)) {
+					pw.write("ERROR");
+				} catch (Exception ignored) {}
+			}
 		}
 
-		finally 
+		finally
 		{
-            // ALWAYS close the file to flush the buffer
-            if (fileWriter != null) {
-                fileWriter.close();
-            }
-            try {
-                if (fileReader != null) {
-                    fileReader.close();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+			if (fileWriter != null) {
+				fileWriter.close();
+			}
+			try {
+				if (fileReader != null) fileReader.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	/** Builds ordered list of method labels for className's vtable (static overrides handled). */
+	private static List<String> buildVtable(types.TypeClass tc) {
+		return mips.MipsGenerator.buildVtable(tc);
 	}
 }
 

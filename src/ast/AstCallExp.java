@@ -11,6 +11,13 @@ public class AstCallExp extends AstExp {
     public String methodName;
     public AstExpList args;       // null if no arguments
 
+    /** Set during SemantMe: class name for virtual dispatch (non-null when receiver != null or implicit self). */
+    private String resolvedClassName = null;
+    /** True when the call is dispatched virtually (through vtable). */
+    private boolean isVirtual = false;
+    /** True when the function return type is void. */
+    private boolean isVoid = false;
+
     /******************/
     /* CONSTRUCTOR(S) */
     /******************/
@@ -84,6 +91,11 @@ public class AstCallExp extends AstExp {
             symboltable.SymbolTable tbl = symboltable.SymbolTable.getInstance();
             if (tbl.currentClass != null) {
                 funcType = tbl.currentClass.lookupMethod(methodName);
+                if (funcType != null) {
+                    // Implicit self call — virtual dispatch
+                    this.isVirtual = true;
+                    this.resolvedClassName = tbl.currentClass.name;
+                }
             }
             
             // If not found in class, look in symbol table for global functions
@@ -108,6 +120,8 @@ public class AstCallExp extends AstExp {
                 System.out.format(">> ERROR: Method %s not found in class %s\n", methodName, tc.name);
                 error();
             }
+            this.isVirtual = true;
+            this.resolvedClassName = tc.name;
         }
 
         // 2. Validate Arguments
@@ -118,9 +132,6 @@ public class AstCallExp extends AstExp {
             argList = (types.TypeList) args.SemantMe(); 
         }
 
-        // --- DELETED UNUSED VARIABLES HERE ---
-        
-        // Iterate using the lists directly
         types.TypeList pNode = paramList;
         types.TypeList aNode = argList;
 
@@ -139,27 +150,49 @@ public class AstCallExp extends AstExp {
             error();
         }
 
+        this.isVoid = (funcType.returnType instanceof types.TypeVoid);
         return funcType.returnType;
     }
 
     public temp.Temp irMe()
     {
-        // Build argument list
+        // Build argument list (evaluated left-to-right per L spec)
         ir.TempList argList = null;
         if (args != null) {
             argList = args.irMe();
         }
-        
-        // Special case: PrintInt is a built-in that we handle specially
+
+        // Built-in: PrintInt
         if ("PrintInt".equals(methodName) && argList != null && argList.head != null) {
             ir.Ir.getInstance().AddIrCommand(new ir.IrCommandPrintInt(argList.head));
-            return null; // PrintInt doesn't return a value
+            return null;
         }
-        
-        // For regular function calls, generate call instruction
-        temp.Temp result = temp.TempFactory.getInstance().getFreshTemp();
-        ir.Ir.getInstance().AddIrCommand(new ir.IrCommandCall(result, methodName, argList));
-        
+        // Built-in: PrintString
+        if ("PrintString".equals(methodName) && argList != null && argList.head != null) {
+            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandPrintString(argList.head));
+            return null;
+        }
+
+        temp.Temp result = isVoid ? null : temp.TempFactory.getInstance().getFreshTemp();
+
+        if (isVirtual) {
+            // Virtual method call: dispatch through vtable
+            temp.Temp selfTemp;
+            if (receiver != null) {
+                // Explicit receiver: obj.method()
+                selfTemp = receiver.irMe();
+            } else {
+                // Implicit self call from inside a method body
+                selfTemp = temp.TempFactory.getInstance().getFreshTemp();
+                ir.Ir.getInstance().AddIrCommand(new ir.IrCommandLoad(selfTemp, "__self"));
+            }
+            ir.Ir.getInstance().AddIrCommand(
+                new ir.IrCommandVirtualCall(result, selfTemp, resolvedClassName, methodName, argList));
+        } else {
+            // Static function call
+            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandCall(result, methodName, argList));
+        }
+
         return result;
     }
 }
