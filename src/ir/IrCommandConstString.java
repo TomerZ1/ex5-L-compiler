@@ -42,9 +42,10 @@ public class IrCommandConstString extends IrCommand
 	@Override
 	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
 		String strLabel = mg.freshLabel("str_const");
-		// Escape special characters in string value
-		String escaped = value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
-		mg.addDataEntry(strLabel + ": .asciiz \"" + escaped + "\"\n");
+		// Strip surrounding quotes that the lexer includes in the value
+		String inner = (value.length() >= 2 && value.charAt(0) == '"' && value.charAt(value.length()-1) == '"')
+				? value.substring(1, value.length()-1) : value;
+		mg.addDataEntry(strLabel + ": .asciiz \"" + inner + "\"\n");
 		mg.emit("la " + r(t, regMap) + ", " + strLabel + "\n");
 	}
 }

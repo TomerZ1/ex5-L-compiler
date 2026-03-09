@@ -58,5 +58,18 @@ public class IrCommandNewClass extends IrCommand
 		for (int i = 0; i < totalFields; i++) {
 			mg.emit("sw $zero, " + ((i + 1) * 4) + "($v0)\n");
 		}
+		// Apply non-zero field defaults (e.g. int age := 10) from full hierarchy
+		applyFieldDefaults(mg, tc, r(dst, regMap));
+	}
+
+	private void applyFieldDefaults(mips.MipsGenerator mg, types.TypeClass tc, String objReg) {
+		if (tc == null) return;
+		applyFieldDefaults(mg, tc.father, objReg);
+		for (java.util.Map.Entry<String, Integer> e : tc.fieldDefaults.entrySet()) {
+			int idx = tc.getFieldIndex(e.getKey());
+			int offset = (idx + 1) * 4;
+			mg.emit("li $s0, " + e.getValue() + "\n");
+			mg.emit("sw $s0, " + offset + "(" + objReg + ")\n");
+		}
 	}
 }

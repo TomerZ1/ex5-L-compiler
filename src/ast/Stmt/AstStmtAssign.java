@@ -93,14 +93,12 @@ public class AstStmtAssign extends AstStmt
 
     public Temp irMe()
     {
-        Temp src = exp.irMe();
-        
         // Handle different variable types
         if (var instanceof AstVarSimple) {
-            // Simple variable: x := exp
+            // Simple variable: x := exp  (RHS first is fine, no LHS side-effects)
+            Temp src = exp.irMe();
             AstVarSimple simpleVar = (AstVarSimple) var;
             if (simpleVar.isClassField) {
-                // Implicit self.field assignment: load self then store to field
                 Temp selfTemp = TempFactory.getInstance().getFreshTemp();
                 Ir.getInstance().AddIrCommand(new IrCommandLoad(selfTemp, "__self"));
                 Ir.getInstance().AddIrCommand(new IrCommandFieldStore(selfTemp, simpleVar.name, src, simpleVar.selfClassName));
@@ -109,15 +107,17 @@ public class AstStmtAssign extends AstStmt
                 Ir.getInstance().AddIrCommand(new IrCommandStore(varIrName, src));
             }
         } else if (var instanceof AstVarField) {
-            // Field access: obj.field := exp
+            // Field access: obj.field := exp — evaluate obj first (LHS), then RHS
             AstVarField fieldVar = (AstVarField) var;
             Temp objTemp = fieldVar.var.irMe();
+            Temp src = exp.irMe();
             Ir.getInstance().AddIrCommand(new IrCommandFieldStore(objTemp, fieldVar.fieldName, src, fieldVar.objClassName));
         } else if (var instanceof AstVarSubscript) {
-            // Array subscript: arr[index] := exp
+            // Array subscript: arr[index] := exp — evaluate arr and index first, then RHS
             AstVarSubscript subsVar = (AstVarSubscript) var;
             Temp arrTemp = subsVar.var.irMe();
             Temp indexTemp = subsVar.subscript.irMe();
+            Temp src = exp.irMe();
             Ir.getInstance().AddIrCommand(new IrCommandArrayStore(arrTemp, indexTemp, src));
         }
         

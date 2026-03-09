@@ -205,12 +205,17 @@ public class AstClassDec extends AstDec {
         TypeClass previousClass = tbl.currentClass;
         tbl.currentClass = myClass;
 
-        // Emit IR for all method bodies
+        // Emit IR for all method bodies; collect field defaults for VarDec fields
         if (dataMemberList != null) {
             ast.AstCFieldList it = dataMemberList;
             while (it != null) {
                 if (it.head.dec instanceof AstFuncDec) {
                     ((AstFuncDec) it.head.dec).irMe();
+                } else if (it.head.dec instanceof AstVarDec) {
+                    AstVarDec vd = (AstVarDec) it.head.dec;
+                    if (vd.exp instanceof ast.Exp.AstExpInt) {
+                        myClass.fieldDefaults.put(vd.name, ((ast.Exp.AstExpInt) vd.exp).value);
+                    }
                 }
                 it = it.tail;
             }

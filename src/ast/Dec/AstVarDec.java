@@ -15,8 +15,8 @@ import ir.*;
 
 public class AstVarDec extends AstDec {
     private AstType typeNode; // int, string, void, A, B, ... 
-    private String name; // string name of the var
-    private AstExp exp; // optional initialization expression
+    String name; // string name of the var
+    AstExp exp; // optional initialization expression
     private AstNewExp newExp; // optional new expression for class types
     private String irVarName = null; // scope-qualified IR name, e.g. "x_0"
 

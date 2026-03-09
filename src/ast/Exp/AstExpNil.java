@@ -55,8 +55,8 @@ public class AstExpNil extends AstExp {
 
     public temp.Temp irMe()
     {
-        // Nil is not used in our dataflow analysis tests
-        // Return null as we don't generate IR for nil
-        return null;
+        temp.Temp t = temp.TempFactory.getInstance().getFreshTemp();
+        ir.Ir.getInstance().AddIrCommand(new ir.IRcommandConstInt(t, 0));
+        return t;
     }
 }
