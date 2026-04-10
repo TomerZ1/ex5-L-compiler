@@ -80,6 +80,7 @@ public class IrCommandVirtualCall extends IrCommand
 		mg.emit("sw " + selfReg + ", 0($sp)\n");
 
 		// Virtual dispatch: vtable ptr at obj[0], method ptr at vtable[idx*4]
+				mg.emitNilCheck(selfReg);
 		mg.emit("lw $s0, 0(" + selfReg + ")\n");
 		int vtIdx = mips.MipsGenerator.getVtableIndex(className, methodName);
 		mg.emit("lw $s1, " + (vtIdx * 4) + "($s0)\n");

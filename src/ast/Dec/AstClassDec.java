@@ -215,6 +215,8 @@ public class AstClassDec extends AstDec {
                     AstVarDec vd = (AstVarDec) it.head.dec;
                     if (vd.exp instanceof ast.Exp.AstExpInt) {
                         myClass.fieldDefaults.put(vd.name, ((ast.Exp.AstExpInt) vd.exp).value);
+                    } else if (vd.exp instanceof ast.Exp.AstExpString) {
+                        myClass.stringFieldDefaults.put(vd.name, ((ast.Exp.AstExpString) vd.exp).value);
                     }
                 }
                 it = it.tail;

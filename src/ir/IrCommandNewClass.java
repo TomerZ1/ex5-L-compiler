@@ -71,5 +71,18 @@ public class IrCommandNewClass extends IrCommand
 			mg.emit("li $s0, " + e.getValue() + "\n");
 			mg.emit("sw $s0, " + offset + "(" + objReg + ")\n");
 		}
+		for (java.util.Map.Entry<String, String> e : tc.stringFieldDefaults.entrySet()) {
+			int idx = tc.getFieldIndex(e.getKey());
+			int offset = (idx + 1) * 4;
+			String raw = e.getValue();
+			String inner = (raw != null && raw.length() >= 2 && raw.charAt(0) == '"' && raw.charAt(raw.length()-1) == '"')
+					? raw.substring(1, raw.length()-1)
+					: raw;
+			String escaped = inner.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
+			String lbl = mg.freshLabel("str_field_init");
+			mg.addDataEntry(lbl + ": .asciiz \"" + escaped + "\"\n");
+			mg.emit("la $s0, " + lbl + "\n");
+			mg.emit("sw $s0, " + offset + "(" + objReg + ")\n");
+		}
 	}
 }

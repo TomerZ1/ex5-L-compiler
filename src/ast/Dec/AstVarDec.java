@@ -122,10 +122,10 @@ public class AstVarDec extends AstDec {
         varDecType.lineNumber = this.lineNumber;  // Store the line number for error reporting
 
                 
-        // 7.5. If we're inside a class, also add to class's fields HashMap immediately
-        // This allows method bodies to access fields before all members are processed
+        // 7.5. If we're inside class member declaration scope, add to class fields.
+        // Do NOT add method-local vars into class fields.
         SymbolTable tbl = SymbolTable.getInstance();
-        if (tbl.currentClass != null) {
+        if (tbl.currentClass != null && tbl.getScopeIndex() == 1) {
             tbl.currentClass.fields.put(name, varType);
         }
         

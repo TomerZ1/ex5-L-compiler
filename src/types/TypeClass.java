@@ -21,8 +21,10 @@ public class TypeClass extends Type
 	// vtable indices and object field offsets.
 	public LinkedHashMap<String, Type> fields = new LinkedHashMap<>();
 	public LinkedHashMap<String, TypeFunction> methods = new LinkedHashMap<>();
-        // Integer default values for fields that have initializers (e.g. int age := 10)
-        public LinkedHashMap<String, Integer> fieldDefaults = new LinkedHashMap<>();
+	// Integer default values for fields that have initializers (e.g. int age := 10)
+	public LinkedHashMap<String, Integer> fieldDefaults = new LinkedHashMap<>();
+	// String default values for fields that have initializers (raw literal text).
+	public LinkedHashMap<String, String> stringFieldDefaults = new LinkedHashMap<>();
 	public TypeClass(TypeClass father, String name, TypeList dataMembers)
 	{
 		this.name = name;

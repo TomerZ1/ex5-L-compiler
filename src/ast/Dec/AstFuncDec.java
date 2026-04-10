@@ -132,10 +132,9 @@ public class AstFuncDec extends AstDec {
             it = it.tail;
         }
 
-        // --- NEW ADDITION START ---
         // Store the expected return type in the SymbolTable so return statements can check it
+        Type prevReturnType = tbl.currentFunctionReturnType;
         tbl.currentFunctionReturnType = retType;
-        // --- NEW ADDITION END ---
 
         // 8. Process Function Body
         if (stmtList != null) {
@@ -144,6 +143,9 @@ public class AstFuncDec extends AstDec {
 
         // 9. End Scope
         tbl.endScope();
+
+        // Restore previous function return-type context
+        tbl.currentFunctionReturnType = prevReturnType;
 
         // 10. RETURN THE WRAPPER
         return funcType;
@@ -155,10 +157,10 @@ public class AstFuncDec extends AstDec {
 
         // Determine the label:
         //   - methods inside a class: "ClassName_methodName"
-        //   - top-level functions  : "methodName"
+        //   - top-level functions  : "func_methodName" (except main)
         String funcLabel = (tbl.currentClass != null)
             ? tbl.currentClass.name + "_" + name
-            : name;
+            : ("main".equals(name) ? "main" : "func_" + name);
 
         // Emit function-entry label (isFunctionEntry=true lets Main.java split IR by function)
         ir.AddIrCommand(new IrCommandLabel(funcLabel, true));
@@ -180,6 +182,13 @@ public class AstFuncDec extends AstDec {
 
         // Emit function body IR
         if (stmtList != null) stmtList.irMe();
+
+        // Fallthrough return behavior: for non-void functions, return 0 if control reaches end.
+        if (!"void".equals(returnType.typeName)) {
+            temp.Temp zeroTemp = temp.TempFactory.getInstance().getFreshTemp();
+            ir.AddIrCommand(new ir.IRcommandConstInt(zeroTemp, 0));
+            ir.AddIrCommand(new ir.IrCommandReturn(zeroTemp));
+        }
 
         return null;
     }

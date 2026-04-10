@@ -190,7 +190,8 @@ public class AstCallExp extends AstExp {
                 new ir.IrCommandVirtualCall(result, selfTemp, resolvedClassName, methodName, argList));
         } else {
             // Static function call
-            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandCall(result, methodName, argList));
+            String calleeLabel = "main".equals(methodName) ? "main" : "func_" + methodName;
+            ir.Ir.getInstance().AddIrCommand(new ir.IrCommandCall(result, calleeLabel, argList));
         }
 
         return result;

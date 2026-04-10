@@ -51,7 +51,10 @@ public class IrCommandStore extends IrCommand
 	public void mipsMe(mips.MipsGenerator mg, java.util.Map<String,String> regMap) {
 		String srcReg = r(src, regMap);
 		Ir irReg = Ir.getInstance();
-		if (irReg.isGlobal(varName)) {
+		if (irReg.isParam(mg.currentFunc, varName)) {
+			int idx = irReg.getParamIndex(mg.currentFunc, varName);
+			mg.emit("sw " + srcReg + ", " + (8 + idx * 4) + "($fp)\n");
+		} else if (irReg.isGlobal(varName)) {
 			mg.emit("sw " + srcReg + ", " + varName + "\n");
 		} else {
 			mg.emit("sw " + srcReg + ", " + mg.getLocal(varName) + "($fp)\n");

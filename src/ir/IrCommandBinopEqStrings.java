@@ -50,9 +50,9 @@ public class IrCommandBinopEqStrings extends IrCommand
 		String loop = mg.freshLabel("str_eq_loop");
 		String neq  = mg.freshLabel("str_neq");
 		String end  = mg.freshLabel("str_eq_end");
-		mg.emit("li " + rd + ", 1\n");
 		mg.emit("move $s0, " + r1 + "\n");
 		mg.emit("move $s1, " + r2 + "\n");
+		mg.emit("li " + rd + ", 1\n");
 		mg.emit(loop + ":\n");
 		mg.emit("lb $s2, 0($s0)\n");
 		mg.emit("lb $s3, 0($s1)\n");
